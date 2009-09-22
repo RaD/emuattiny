@@ -1,0 +1,5 @@
+ToDo List:
+* check relations with SREG for each instruction;
+* decode more instructions;
+* add PIN_CHANGE interrupt;
+* make watches.
