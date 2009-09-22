@@ -45,40 +45,53 @@ def help_info():
     print
 
 def check_record(record):
-    """ This procedure check record count+addrH+addrL+type+sum(dd)+ss ==
-    0x00.  If checksum doesn't match, it raises exceptions, else
-    silently return. """
+    """ Checks record count+addrH+addrL+type+sum(dd)+ss == 0x00. If
+    checksum doesn't match, it raises exceptions, else silently
+    return. """
     checking = reduce(lambda x,y: x + y, [int(record[i*2:i*2+2], 16) for i in [x for x in xrange(len(record)/2)]])
     if ('%02x' % checking)[-2:] != '00':
         raise Exception ('ERROR: Checksum doesn\' match! Record is %s' % (record, ))
 
 def int2bin(n, count=16):
+    """ Converts integer to binary representation. """
     return "".join([str((n >> y) & 1) for y in range(count-1, -1, -1)])
 
 def set_bit(x, bitnum):
+    """ Sets appropriate bit. """
     return x | 1 << bitnum
 
 def clear_bit(x, bitnum):
+    """ Clears appropriate bit. """
     return x & ~(1 << bitnum)
 
 def check_bit(x, bitnum):
+    """ Checks if appropriate bit is set. """
     return (x & (1 << bitnum)) != 0
 
 def get_port_by_name(port_list, name):
+    """ Get port's number by its name. """
     return filter(lambda x: port_list[x] == name.upper(), port_list)[0]
 
 def get_port_value(port_list, number):
+    """ Get the value of appropriate port. """
     return port_list[number]
 
 def set_flag(port_list, flag, action='reset'):
+    """ Set the SREG bits. """
+    flags = {'i': 7, 't': 6, 'h': 5, 's': 4, 'v': 3, 'n': 2, 'z': 1, 'c': 0}
     port_number = get_port_by_name('sreg')
-    port_list[port_number] = set_bit(
-
-def reset_C_flag():
-    pass
+    try:
+        value = port_list[port_number]
+        bitnum = flags[flag]
+    except:
+        raise Exception('ERROR: Wrong flag!')
+    if action == 'set':
+        port_list[port_number] = set_bit(value, bitnum)
+    else:
+        port_list[port_number] = clear_bit(value, bitnum)
 
 def parse_opcode(addr, word):
-    """ This function return appropriate assembler mnemonic. """
+    """ Returns appropriate assembler mnemonic. """
     from attiny13 import mnemonics, logics
     b = int2bin(int(word, 16))
     for mnemo, regexp, mtype in mnemonics:
@@ -91,13 +104,12 @@ def parse_opcode(addr, word):
                 args.append(m.group(k))
 
             if callable(func):
-                #print b, mnemo, func(*args)
                 return (mnemo, func(*args))
             else:
-                #print b, mnemo
                 return (mnemo, ())
     
 def build_code_tree(filename):
+    """ Builds code tree. """
     if not os.path.isfile(filename):
         raise Exception('ERROR: Does the %s exist?' % (filename, ))
     hex = open(filename, 'r').read().split('\r\n')
@@ -123,10 +135,8 @@ def build_code_tree(filename):
         (count, addr, rtype, data, checksum) = m.group('count', 'addr', 'type', 'data', 'checksum')
 
         if rtype == '02':
-            #print '%s: %s' % (record_types[rtype], data)
             segment_address = int(data, 16)
         elif rtype == '01':
-            #print '%s' % (record_types[rtype], )
             pass
         elif rtype == '00':
             record_start_address = segment_address + int(addr, 16)
@@ -134,7 +144,6 @@ def build_code_tree(filename):
             for i in xrange(len(data)/4):
                 word = '%s%s' % (data[i*4+2:i*4+4], data[i*4:i*4+2])
                 (mnemo, value) = parse_opcode(op_addr, word)
-                #print record_start_address, op_addr, mnemo, value
                 if type(value) is tuple:
                     if mnemo == 'eor' and value[0] == value[1]:
                         mnemo = 'clr'
@@ -146,6 +155,7 @@ def build_code_tree(filename):
     return code_tree
 
 def show_registers():
+    """ Shows current state of registers. """
     for i in xrange(8):
         for j in xrange(4):
             val = registers['r%02i' % (j * 8 + i)]
@@ -154,6 +164,7 @@ def show_registers():
     print
 
 def show_ports():
+    """ Shows current state of I/O ports. """
     for i in ports_name.keys():
         key = ports_name[i]
         val = ports_values[i]
@@ -161,14 +172,12 @@ def show_ports():
     print
 
 def show_scope(pointer):
+    """ Shows current scope. """
     list = pointer - 8
     if list < 0:
         list = 0
     for i in xrange(8):
-        mnemo = code_tree.get('%04x' % (list + i * 2), None)
-        if not mnemo:
-            pass
-        (command, args) = mnemo
+        (command, args) = code_tree.get('%04x' % (list + i * 2), (None, None))
         if args:
             print '%04x : %s \t %s' % (list + i * 2, command, args)
         else:
@@ -176,11 +185,14 @@ def show_scope(pointer):
     print
 
 def show_stack():
+    """ Shows current state of the stack. """
     for i in stack:
         print '[ %i ]' % i
     print
 
 def process_opcode(pointer):
+    """ Processes instructions by its type. ToDo: May be it would be
+    useful to move this function into chip's module. """
     if command == 'cli':
         ports_values['3f'] = clear_bit(ports_values['3f'], 7) # I
     if command == 'clr':
