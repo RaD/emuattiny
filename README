@@ -4,4 +4,4 @@ on Linux area. Also it'd helped to me to improve my skills in
 Python.
 
 Usage:
-	python ./emulator.py some.hex
+	python ./emulator.py -f some.hex
