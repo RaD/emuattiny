@@ -52,9 +52,6 @@ def check_record(record):
     if ('%02x' % checking)[-2:] != '00':
         raise Exception ('ERROR: Checksum doesn\' match! Record is %s' % (record, ))
 
-def int2bin(n, count=16):
-    """ Converts integer to binary representation. """
-    return "".join([str((n >> y) & 1) for y in range(count-1, -1, -1)])
 
 def set_bit(x, bitnum):
     """ Sets appropriate bit. """
@@ -76,39 +73,27 @@ def get_port_value(port_list, number):
     """ Get the value of appropriate port. """
     return port_list[number]
 
-def set_flag(port_list, flag, action='reset'):
+def set_flag(port_list, flags, action='reset'):
     """ Set the SREG bits. """
     flags = {'i': 7, 't': 6, 'h': 5, 's': 4, 'v': 3, 'n': 2, 'z': 1, 'c': 0}
-    port_number = get_port_by_name('sreg')
+    port_number = get_port_by_name(port_list, 'sreg')
     try:
         value = port_list[port_number]
         bitnum = flags[flag]
     except:
         raise Exception('ERROR: Wrong flag!')
+    action_func = None
     if action == 'set':
-        port_list[port_number] = set_bit(value, bitnum)
+        action_func = set_bit
     else:
-        port_list[port_number] = clear_bit(value, bitnum)
+        action_func = clear_bit
+    if type(flags) is tuple:
+        for i in flags:
+            port_list[port_number] = action_func(value, bitnum)
+    else:
+        port_list[port_number] = action_func(value, bitnum)
 
-def parse_opcode(addr, word):
-    """ Returns appropriate assembler mnemonic. """
-    from attiny13 import mnemonics, logics
-    b = int2bin(int(word, 16))
-    for mnemo, regexp, mtype in mnemonics:
-        m = re.match(regexp, b)
-        if m:
-            (fields, func) = logics.get(mtype, (tuple(), lambda addr: None))
-
-            args = [addr]
-            for k in fields:
-                args.append(m.group(k))
-
-            if callable(func):
-                return (mnemo, func(*args))
-            else:
-                return (mnemo, ())
-    
-def build_code_tree(filename):
+def build_code_tree(alu, filename):
     """ Builds code tree. """
     if not os.path.isfile(filename):
         raise Exception('ERROR: Does the %s exist?' % (filename, ))
@@ -143,40 +128,42 @@ def build_code_tree(filename):
             op_addr = record_start_address
             for i in xrange(len(data)/4):
                 word = '%s%s' % (data[i*4+2:i*4+4], data[i*4:i*4+2])
-                (mnemo, value) = parse_opcode(op_addr, word)
+                (mnemo, value) = alu.parse(op_addr, word)
+
+                # operand synonyms
                 if type(value) is tuple:
                     if mnemo == 'eor' and value[0] == value[1]:
                         mnemo = 'clr'
                         value = value[0]
+
                 code_tree.update({'%04x' % op_addr: (mnemo, value)})
                 op_addr += 2
         else:
             continue
     return code_tree
 
-def show_registers():
+def show_registers(alu):
     """ Shows current state of registers. """
+    registers = alu.get_regs()
     for i in xrange(8):
         for j in xrange(4):
-            val = registers['r%02i' % (j * 8 + i)]
-            print 'r%02i = % 4i : 0x%02x : %s\t' % (j * 8 + i, val, val, int2bin(val, 8)),
+            val, binval = registers['r%02i' % (j * 8 + i)]
+            print 'r%02i = % 4i : 0x%02x : %s\t' % (j * 8 + i, val, val, binval),
         print
     print
 
-def show_ports():
+def show_ports(alu):
     """ Shows current state of I/O ports. """
-    for i in ports_name.keys():
-        key = ports_name[i]
-        val = ports_values[i]
-        print '%02x : %s\t= % 4i : 0x%02x : %s' % (int(i, 16), key, val, val, int2bin(val, 8))
+    for i, key, val, binval in alu.get_ports():
+        print '%02x : %s\t= % 4i : 0x%02x : %s' % (int(i, 16), key, val, val, binval)
     print
 
 def show_scope(pointer):
     """ Shows current scope. """
-    list = pointer - 8
+    list = pointer - 16
     if list < 0:
         list = 0
-    for i in xrange(8):
+    for i in xrange(16):
         (command, args) = code_tree.get('%04x' % (list + i * 2), (None, None))
         if args:
             print '%04x : %s \t %s' % (list + i * 2, command, args)
@@ -184,89 +171,30 @@ def show_scope(pointer):
             print '%04x : %s' % (list + i * 2, command)
     print
 
-def show_stack():
+def show_stack(alu):
     """ Shows current state of the stack. """
-    for i in stack:
+    for i in alu.get_stack():
         print '[ %i ]' % i
     print
 
-def process_opcode(pointer):
-    """ Processes instructions by its type. ToDo: May be it would be
-    useful to move this function into chip's module. """
-    if command == 'cli':
-        ports_values['3f'] = clear_bit(ports_values['3f'], 7) # I
-    if command == 'clr':
-        ports_values['3f'] = ports_values['3f'] | 1 << 1 | 0 << 2 | 0 << 3 | 0 << 4 # Z N V S
-        registers[args] = 0
-    if command == 'in':
-        key = args[1].split('x')[1]
-        value = ports_values[key]
-        registers[args[0]] = value
-    if command == 'ldi':
-        registers[args[0]] = int(args[1], 2)
-    if command == 'ori':
-        value = registers[args[0]] | int(args[1], 2)
-        ports_values['3f'] = ports_values['3f'] \
-            | 0 << 3 \
-            | (value == 0 and 1 or 0) << 1 \
-            | (check_bit(value, 7) and 1 or 0) << 2
-        registers[args[0]] = value
-    if command == 'out':
-        value = registers[args[1]]
-        key = args[0].split('x')[1]
-        ports_values[key] = value
-    if command == 'pop':
-        registers[args] = stack.pop()
-    if command == 'push':
-        stack.append(registers[args])
-    if command == 'rcall':
-        stack.append(pointer)
-        pointer = int(args, 16) - 2
-    if command == 'ret':
-        pointer = stack.pop()
-    if command == 'reti':
-        ports_values['3f'] = set_bit(ports_values['3f'], 7)
-        pointer = stack.pop() - 2
-    if command == 'rjmp':
-        pointer = int(args.split('x')[1], 16) - 2
-    if command == 'sbic':
-        if not check_bit(registers[args[0]], args[1]):
-            pointer += 2;
-    if command == 'sbrs':
-        if check_bit(registers[args[0]], args[1]):
-            pointer += 2;
-    if command == 'sei':
-        ports_values['3f'] = set_bit(ports_values['3f'], 7)
-    pointer += 2
-    return pointer
-
 if __name__ == '__main__':
-    from attiny13 import ports as ports_name
     copyright()
 
-    pointer = 0
-    registers = {}
-    ports_values = {}
-    stack = []
+    from attiny13 import ATtiny13
+    alu = ATtiny13()
 
-    code_tree = build_code_tree(options.hexfile)
+    code_tree = build_code_tree(alu, options.hexfile)
 
-    [registers.update({'r%02i' % r: 0}) for r in xrange(32)]
-    [ports_values.update({p: 0}) for p in ports_name.keys()]
-
-    show_scope(pointer)
+    show_scope(alu.get_pointer())
     while True:
-        addr = '%04x' % pointer
+        addr = '%04x' % alu.get_pointer()
         mnemo = code_tree.get(addr, None)
         if not mnemo:
             raise Exception('ERROR: %04x' % pointer)
         (command, args) = mnemo
-
-        if args:
-            print addr, ': ', command, '\t', args
-        else:
-            print addr, ': ', command
         
+        alu.show(command, args)
+
         user = raw_input('# ')
 
         if user in ['q', 'quit']:
@@ -274,22 +202,15 @@ if __name__ == '__main__':
         if user in ['h', 'help']:
             help_info()
         if user in ['r', 'regs']:
-            show_registers()
+            show_registers(alu)
         if user in ['p', 'ports']:
-            show_ports()
-        if user in ['l', 'list']:
-            show_scope(pointer)
+            show_ports(alu)
         if user in ['s', 'stack']:
-            show_stack()
+            show_stack(alu)
+        if user in ['l', 'list']:
+            show_scope(alu.get_pointer())
         if user in ['t', 'int timer']: # timer interrupt
-            sreg_port = get_port_by_name(ports_name, 'sreg')
-            sreg_value = get_port_value(ports_values, sreg_port)
-            if check_bit(sreg_value, 7):
-                stack.append(pointer)
-                pointer = 6
-                print 'timer interrupt'
-            else:
-                print 'interrupts are not allowed'
+            alu.init_exception('tim0_ovf')
         if user.startswith('set'):
             set_re = [
                 ('port', 'binary', '^set p(?P<port_name>[A-Za-z0-9]+)=0b(?P<value>[01]+)'),
@@ -302,7 +223,7 @@ if __name__ == '__main__':
             for dest, pres, regexp in set_re:
                 m = re.match(regexp, user)
                 if m:
-                    print 'matched', dest, pres
+                    #print 'matched', dest, pres
                     if pres == 'binary':
                         value = int(m.group('value'), 2)
                     elif pres == 'hex':
@@ -318,6 +239,6 @@ if __name__ == '__main__':
                         registers[reg_name] = value
                     break
         if user in ['n', 'next']:
-            pointer = process_opcode(pointer)
+            alu.process(command, args)
 
     sys.exit(0)
