@@ -185,7 +185,7 @@ class ATtiny13(ALU):
             #self.pointer += 2
         else:
             print '%04x : %s\t%04x' % (self.pointer, command, self.pointer + 2 * k + 2),
-            print '\t\t[i:%s][t:%s][h:%s][s:%s][v:%s][n:%s][z:%s][c:%s]' % tuple([z for z in self.int2bin(self.get_sreg(), 8)])
+            print '\t\t[i:%s][t:%s][h:%s][s:%s][v:%s][n:%s][z:%s][c:%s]' % tuple(self.int2bin(self.get_sreg(), 8))
 
     def adc(self, args, print_line):
         (rd, rr) = args
