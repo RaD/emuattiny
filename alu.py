@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+# (c) 2009 Ruslan Popov <ruslan.popov@gmail.com>
+
 class ALU(object):
 
     def __init__(self, *args, **kwargs):
