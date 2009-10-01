@@ -37,7 +37,7 @@ class ATtiny13(ALU):
             'clr': (None, None, self.clr),
             'com': ('^1001010(?P<rd>[01]{5})0000$', 'rd', lambda: 'com'),
             'cpi': ('^0011(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k', lambda: 'cpi'),
-            'dec': ('^1001010(?P<rd>[01]{5})1010$', 'rd', lambda: 'dec'),
+            'dec': ('^1001010(?P<rd>[01]{5})1010$', 'rd', self.dec),
             'eor': ('^001001(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr', lambda: 'eor'),
             'in': ('^10110(?P<aa>[01]{2})(?P<rd>[01]{5})(?P<ab>[01]{4})$', 'rd_a', self.in_op),
             'ldi': ('^1110(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k', self.ldi),
@@ -103,6 +103,12 @@ class ATtiny13(ALU):
             result.append((i, key, val, self.int2bin(val, 8)))
         return result
 
+    def get_port_by_name(self, port_name):
+        for id, name in self.port_names.items():
+            if name == port_name:
+                return id
+        return None
+
     def get_stack(self):
         return self.stack
 
@@ -151,7 +157,7 @@ class ATtiny13(ALU):
         value = action(self.reg_vals[rd], k)
         if not print_line:
             # s = n xor v
-            self.sreg_reset('v')
+            self.sreg_clear('v')
             # n = r7
             # z = neg(r7) and neg(r6) and .. and neg(r0)
             self.reg_vals[rd] = value
@@ -174,10 +180,12 @@ class ATtiny13(ALU):
         if is_negative:
             k -= range
         if not print_line:
-            # SET FLAGS HERE
-            self.pointer += 2 * k + 2
+            if command == 'brne' and self.sreg_check('z'):
+                self.pointer += 2 * k + 2
+            #self.pointer += 2
         else:
-            print '%04x : %s\t%04x' % (self.pointer, command, self.pointer + 2 * k + 2)
+            print '%04x : %s\t%04x' % (self.pointer, command, self.pointer + 2 * k + 2),
+            print '\t\t[i:%s][t:%s][h:%s][s:%s][v:%s][n:%s][z:%s][c:%s]' % tuple([z for z in self.int2bin(self.get_sreg(), 8)])
 
     def adc(self, args, print_line):
         (rd, rr) = args
@@ -227,7 +235,7 @@ class ATtiny13(ALU):
             if self.check_bit(value, b):
                 self.sreg_set('t')
             else:
-                self.sreg_reset('t')
+                self.sreg_clear('t')
             self.pointer += 2
         else:
             print '%04x : bst\t%s, %s' % (self.pointer, rd, b)
@@ -237,7 +245,7 @@ class ATtiny13(ALU):
 
     def cli(self, no, print_line):
         if not print_line:
-            self.sreg_reset('i')
+            self.sreg_clear('i')
             self.pointer += 2
         else:
             print '%04x : cli' % (self.pointer, )
@@ -245,11 +253,28 @@ class ATtiny13(ALU):
     def clr(self, rd, print_line):
         if not print_line:
             self.sreg_set('z')
-            self.sreg_reset(('n', 'v', 's'))
+            self.sreg_clear(('n', 'v', 's'))
             self.reg_vals[rd] = 0
             self.pointer += 2
         else:
             print '%04x : clr\t%s' % (self.pointer, rd)
+
+    def dec(self, rd, print_line):
+        if not print_line:
+            value = self.reg_vals[rd]
+            value -= 1
+            if value == -1:
+                value = 255
+            self.reg_vals[rd] = value
+            bval = self.int2bin(value, 8)[::-1]
+
+            self.sreg_change('s', self.sreg_check('n') ^ self.sreg_check('v') and self.set_bit or self.clear_bit)
+            self.sreg_change('v', value == 127 and self.set_bit or self.clear_bit)
+            self.sreg_change('n', bval[7] == 1 and self.set_bit or self.clear_bit)
+            self.sreg_change('z', value == 0 and self.set_bit or self.clear_bit)
+            self.pointer += 2
+        else:
+            print '%04x : dec\t%s' % (self.pointer, rd)
 
     def in_op(self, args, print_line):
         (rd, a) = args
@@ -315,7 +340,10 @@ class ATtiny13(ALU):
 
     def rcall(self, args, print_line):
         (k, is_negative) = args
+        if is_negative:
+            k -= 4096
         if not print_line:
+            # SET FLAGS HERE
             self.stack.append(self.pointer)
             self.pointer += 2 * k + 2
         else:

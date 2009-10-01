@@ -132,11 +132,11 @@ if __name__ == '__main__':
                         value = int(m.group('value'))
                     if dest == 'port':
                         port_name = m.group('port_name')
-                        port_addr = get_port_by_name(port_name)
-                        ports_values[port_addr] = value
+                        port_addr = alu.get_port_by_name(port_name)
+                        alu.set_port(ports_values[port_addr], value)
                     else:
                         reg_name = 'r%s' % m.group('reg_number')
-                        registers[reg_name] = value
+                        alu.set_reg(reg_name, value)
                     break
 
     sys.exit(0)

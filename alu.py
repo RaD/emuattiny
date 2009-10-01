@@ -12,6 +12,12 @@ class ALU(object):
         self.flags = {'i': 7, 't': 6, 'h': 5, 's': 4,
                       'v': 3, 'n': 2, 'z': 1, 'c': 0}
 
+    def set_reg(self, reg_num, value):
+        self.reg_vals[reg_num] = value
+
+    def set_port(self, port_num, value):
+        self.port_vals[port_num] = value
+
     def set_bit(self, x, bitnum):
         """ Sets appropriate bit. """
         return x | 1 << bitnum
@@ -36,7 +42,7 @@ class ALU(object):
         else:
             self.sreg_change(bit_name, self.set_bit)
 
-    def sreg_reset(self, bit_name):
+    def sreg_clear(self, bit_name):
         if type(bit_name) is tuple:
             for i in bit_name:
                 self.sreg_change(i, self.clear_bit)
@@ -47,6 +53,9 @@ class ALU(object):
         value = self.port_vals['3f']
         bit = self.flags[bit_name]
         return self.check_bit(value, bit)
+
+    def get_sreg(self):
+        return self.port_vals['3f']
 
     def int2bin(self, n, count=16):
         """ Converts integer to binary representation. """
