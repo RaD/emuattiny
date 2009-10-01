@@ -21,58 +21,53 @@ class ATtiny13(ALU):
         [self.reg_vals.update({'r%02i' % r: 0}) for r in xrange(32)]
         [self.port_vals.update({p: 0}) for p in self.port_names.keys()]
 
-        self.mnemonics = [
-            ('adc', '^000111(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr'),
-            ('add', '^000011(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr'),
-            ('and', '^001000(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr'),
-            ('andi', '^0111(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k'),
-            ('bld', '^1111100(?P<rd>[01]{5})0(?P<b>[01]{3})$', 'rd_b'),
-            ('brcc', '^111101(?P<k>[01]{7})000$', 'k6'),
-            ('brcs', '^111100(?P<k>[01]{7})000$', 'k6'),
-            ('breq', '^111100(?P<k>[01]{7})001$', 'k6'),
-            ('brne', '^111101(?P<k>[01]{7})001$', 'k6'),
-            ('bst', '^1111101(?P<rd>[01]{5})0(?P<b>[01]{3})$', 'rd_b'),
-            ('cbi', '^10011000(?P<a>[01]{5})(?P<b>[01]{3})$', 'a_b'),
-            ('cli', '^(?P<op>1001010011111000)$', None),
-            ('com', '^1001010(?P<rd>[01]{5})0000$', 'rd'),
-            ('cpi', '^0011(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k'),
-            ('dec', '^1001010(?P<rd>[01]{5})1010$', 'rd'),
-            ('eor', '^001001(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr'),
-            ('in', '^10110(?P<aa>[01]{2})(?P<rd>[01]{5})(?P<ab>[01]{4})$', 'rd_a'),
-            ('ldi', '^1110(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k'),
-            ('mov', '^001011(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr'),
-            ('or', '^001010(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr'),
-            ('ori', '^0110(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k'),
-            ('out', '^10111(?P<aa>[01]{2})(?P<rr>[01]{5})(?P<ab>[01]{4})$', 'a_rr'),
-            ('pop', '^1001000(?P<rd>[01]{5})1111$', 'rd'),
-            ('push', '^1001001(?P<rd>[01]{5})1111$', 'rd'),
-            ('rcall', '^1101(?P<k>[01]{12})$', 'k'),
-            ('ret', '^(?P<op>1001010100001000)$', None),
-            ('reti', '^(?P<op>1001010100011000)$', None),
-            ('rjmp', '^1100(?P<k>[01]{12})$', 'k'),
-            ('rol', '^000111(?P<rd>[01]{10})$', 'rd'),
-            ('ror', '^1001010(?P<rd>[01]{5})0111$', 'rd'),
-            ('sbi', '^10011010(?P<a>[01]{5})(?P<b>[01]{3})$', 'a_b'),
-            ('sbic', '^10011001(?P<a>[01]{5})(?P<b>[01]{3})$', 'a_b'),
-            ('sbrc', '^1111110(?P<rr>[01]{5})0(?P<b>[01]{3})', 'rr_b'),
-            ('sbrs', '^1111111(?P<rr>[01]{5})0(?P<b>[01]{3})', 'rr_b'),
-            ('sei', '^(?P<op>1001010001111000)$', None),
-            ]
+        self.mnemonics = {
+            'adc': ('^000111(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr', self.adc),
+            'add': ('^000011(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr', self.add),
+            'and': ('^001000(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr', lambda: 'and'),
+            'andi': ('^0111(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k', self.andi),
+            'bld': ('^1111100(?P<rd>[01]{5})0(?P<b>[01]{3})$', 'rd_b', self.bld),
+            'brcc': ('^111101(?P<k>[01]{7})000$', 'k', self.brcc),
+            'brcs': ('^111100(?P<k>[01]{7})000$', 'k', lambda: 'brcs'),
+            'breq': ('^111100(?P<k>[01]{7})001$', 'k', lambda: 'breq'),
+            'brne': ('^111101(?P<k>[01]{7})001$', 'k', self.brne),
+            'bst': ('^1111101(?P<rd>[01]{5})0(?P<b>[01]{3})$', 'rd_b', self.bst),
+            'cbi': ('^10011000(?P<a>[01]{5})(?P<b>[01]{3})$', 'a_b', self.cbi),
+            'cli': ('^(?P<op>1001010011111000)$', None, self.cli),
+            'clr': (None, None, self.clr),
+            'com': ('^1001010(?P<rd>[01]{5})0000$', 'rd', lambda: 'com'),
+            'cpi': ('^0011(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k', lambda: 'cpi'),
+            'dec': ('^1001010(?P<rd>[01]{5})1010$', 'rd', lambda: 'dec'),
+            'eor': ('^001001(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr', lambda: 'eor'),
+            'in': ('^10110(?P<aa>[01]{2})(?P<rd>[01]{5})(?P<ab>[01]{4})$', 'rd_a', self.in_op),
+            'ldi': ('^1110(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k', self.ldi),
+            'mov': ('^001011(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr', self.mov),
+            'or': ('^001010(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr', self.or_op),
+            'ori': ('^0110(?P<ka>[01]{4})(?P<rd>[01]{4})(?P<kb>[01]{4})$', 'rd_k', self.ori),
+            'out': ('^10111(?P<aa>[01]{2})(?P<rr>[01]{5})(?P<ab>[01]{4})$', 'a_rr', self.out),
+            'pop': ('^1001000(?P<rd>[01]{5})1111$', 'rd', self.pop),
+            'push': ('^1001001(?P<rd>[01]{5})1111$', 'rd', self.push),
+            'rcall': ('^1101(?P<k>[01]{12})$', 'k', self.rcall),
+            'ret': ('^(?P<op>1001010100001000)$', None, self.ret),
+            'reti': ('^(?P<op>1001010100011000)$', None, self.reti),
+            'rjmp': ('^1100(?P<k>[01]{12})$', 'k', self.rjmp),
+            'rol': ('^000111(?P<ra>[01]{1})(?P<rd>[01]{5})(?P<rb>[01]{4})$', 'rd_rr', self.rol),
+            'ror': ('^1001010(?P<rd>[01]{5})0111$', 'rd', self.ror),
+            'sbi': ('^10011010(?P<a>[01]{5})(?P<b>[01]{3})$', 'a_b', lambda: 'sbi'),
+            'sbic': ('^10011001(?P<a>[01]{5})(?P<b>[01]{3})$', 'a_b', self.sbic),
+            'sbrc': ('^1111110(?P<rr>[01]{5})0(?P<b>[01]{3})', 'rr_b', lambda: 'sbrc'),
+            'sbrs': ('^1111111(?P<rr>[01]{5})0(?P<b>[01]{3})', 'rr_b', self.sbrs),
+            'sei': ('^(?P<op>1001010001111000)$', None, self.sei),
+            }
 
         self.logics = {
             'a_b': (('a', 'b'),
-                    lambda addr, a, b: ('r%s' % int(a,2), int(b,2))),
+                    lambda addr, a, b: (int(a,2), int(b,2))),
             'a_rr': (('aa', 'ab', 'rr'),
                      lambda addr, aa, ab, rr: (int('%s%s' % (aa, ab), 2),
                                                'r%s' % int(rr,2))),
             'k': (('k',),
                   lambda addr, k: (int(k, 2), k.startswith('1'))),
-            'k6': (('k',),
-                   lambda addr, k: (int(k, 2), k.startswith('1'))),
-#                    lambda addr, k: '0x%04x' % (k.startswith('1') \
-#                                            and (addr + 2 - 2 * (2**len(k) - (int(k,2))) ) \
-#                                                    or  (addr + (2 * int(k,2) + 2))
-#                                                )),
             'rd': (('rd',),
                    lambda addr, rd: 'r%s' % int(rd,2)),
             'rd_a': (('aa', 'ab', 'rd'),
@@ -89,37 +84,6 @@ class ATtiny13(ALU):
             'rr_b': (('rr', 'b'),
                      lambda addr, rr, b: ('r%i' % (int(rr,2)), int(b,2)))
             }
-
-        self.opcodes = {
-            'adc': self.adc,
-            'add': self.add,
-            'andi': self.andi,
-            'bld': self.bld,
-            'brcc': self.brcc,
-            'bst': self.bst,
-            'cbi': self.cbi,
-            'cli': self.cli,
-            'clr': self.clr,
-            'in': self.in_op,
-            'ldi': self.ldi,
-            'mov': self.mov,
-            'or': self.or_op,
-            'ori': self.ori,
-            'out': self.out,
-            'pop': self.pop,
-            'push': self.push,
-            'rcall': self.rcall,
-            'ret': self.ret,
-            'reti': self.reti,
-            'rjmp': self.rjmp,
-            'sbic': self.sbic,
-            'sbrs': self.sbrs,
-            'sei': self.sei,
-            }
-
-    def not_implemented_yet(self, command, args):
-        print '%04x : not implemented yet, press l' % (self.pointer, )
-        self.pointer += 2
 
     def get_pointer(self):
         return self.pointer
@@ -153,13 +117,14 @@ class ATtiny13(ALU):
         else:
             print 'interrupts are not allowed'
 
-    def show(self, command, args):
-        return self.opcodes[command](args, True)
-
     def parse(self, addr, word):
         """ Returns appropriate assembler mnemonic. """
         b = self.int2bin(int(word, 16))
-        for mnemo, regexp, mtype in self.mnemonics:
+
+        for mnemo in self.mnemonics.keys():
+            (regexp, mtype, func) = self.mnemonics[mnemo]
+            if regexp is None:
+                continue
             m = re.match(regexp, b)
             if m:
                 (fields, func) = self.logics.get(mtype, (tuple(), lambda addr: None))
@@ -173,10 +138,15 @@ class ATtiny13(ALU):
                 else:
                     return (mnemo, ())
 
-    def process(self, command, args):
-        self.opcodes[command](args, False)
+    def show(self, command, args):
+        (regexp, mtype, func) = self.mnemonics[command]
+        func(args, True)
 
-    def logic(self, command, action, args, print_line):
+    def process(self, command, args):
+        (regexp, mtype, func) = self.mnemonics[command]
+        func(args, False)
+
+    def common_logic(self, command, action, args, print_line):
         (rd, k) = args
         value = action(self.reg_vals[rd], k)
         if not print_line:
@@ -187,7 +157,27 @@ class ATtiny13(ALU):
             self.reg_vals[rd] = value
             self.pointer += 2
         else:
-            print '%04x : %s\t%s, 0x%02x' % (self.pointer, command, rd, k)
+            print '%04x : %s\t%s, 0b%s' % (self.pointer, command, rd, self.int2bin(k, 8))
+
+    def common_checkio(self, command, args, print_line):
+        (a, b) = args
+        a_hex = '%02x' % a
+        if not print_line:
+            if not self.check_bit(self.port_vals[a_hex], b):
+                self.pointer += 2;
+            self.pointer += 2
+        else:
+            print '%04x : %s\t$%02x, %s' % (self.pointer, command, a, b)
+
+    def common_branch(self, command, range, args, print_line):
+        (k, is_negative) = args
+        if is_negative:
+            k -= range
+        if not print_line:
+            # SET FLAGS HERE
+            self.pointer += 2 * k + 2
+        else:
+            print '%04x : %s\t%04x' % (self.pointer, command, self.pointer + 2 * k + 2)
 
     def adc(self, args, print_line):
         (rd, rr) = args
@@ -210,7 +200,7 @@ class ATtiny13(ALU):
             print '%04x : add\t%s, %s' % (self.pointer, rd, rr)
 
     def andi(self, args, print_line):
-        self.logic('andi', operator.__and__, args, print_line)
+        self.common_logic('andi', operator.__and__, args, print_line)
 
     def bld(self, args, print_line):
         (rd, b) = args
@@ -225,15 +215,11 @@ class ATtiny13(ALU):
             print '%04x : bst\t%s, %s' % (self.pointer, rd, b)
 
     def brcc(self, args, print_line):
-        (k, is_negative) = args
-        if is_negative:
-            k -= 128
-        if not print_line:
-            # SET FLAGS HERE
-            self.pointer += 2 * k + 2
-        else:
-            print '%04x : brcc\t%04x' % (self.pointer, self.pointer + 2 * k + 2)
-            
+        self.common_branch('brcc', 128, args, print_line)
+
+    def brne(self, args, print_line):
+        self.common_branch('brne', 128, args, print_line)
+
     def bst(self, args, print_line):
         (rd, b) = args
         if not print_line:
@@ -247,13 +233,7 @@ class ATtiny13(ALU):
             print '%04x : bst\t%s, %s' % (self.pointer, rd, b)
 
     def cbi(self, args, print_line):
-        (a, b) = args
-        if not print_line:
-            if not self.check_bit(self.port_vals[a], b):
-                self.pointer += 2;
-            self.pointer += 2
-        else:
-            print '%04x : cbi\t%s, %s' % (self.pointer, a, b)
+        self.common_checkio('sbic', args, print_line)
 
     def cli(self, no, print_line):
         if not print_line:
@@ -261,7 +241,7 @@ class ATtiny13(ALU):
             self.pointer += 2
         else:
             print '%04x : cli' % (self.pointer, )
-        
+
     def clr(self, rd, print_line):
         if not print_line:
             self.sreg_set('z')
@@ -279,7 +259,7 @@ class ATtiny13(ALU):
             self.reg_vals[a] = value
             self.pointer += 2
         else:
-            print '%04x : in\t%s, 0x%02x' % (self.pointer, rd, a)
+            print '%04x : in\t%s, $%02x' % (self.pointer, rd, a)
 
     def ldi(self, args, print_line):
         (rd, k) = args
@@ -287,7 +267,7 @@ class ATtiny13(ALU):
             self.reg_vals[rd] = k
             self.pointer += 2
         else:
-            print '%04x : ldi\t%s, 0x%02x' % (self.pointer, rd, k)
+            print '%04x : ldi\t%s, 0x%02X' % (self.pointer, rd, k)
 
     def mov(self, args, print_line):
         (rd, rr) = args
@@ -305,9 +285,9 @@ class ATtiny13(ALU):
             self.pointer += 2
         else:
             print '%04x : or\t%s, %s' % (self.pointer, rd, rr)
-            
+
     def ori(self, args, print_line):
-        self.logic('ori', operator.__or__, args, print_line)
+        self.common_logic('ori', operator.__or__, args, print_line)
 
     def out(self, args, print_line):
         (a, rr) = args
@@ -317,7 +297,7 @@ class ATtiny13(ALU):
             self.port_vals[key] = value
             self.pointer += 2
         else:
-            print '%04x : out\t0x%02x, %s' % (self.pointer, a, rr)
+            print '%04x : out\t$%02x, %s' % (self.pointer, a, rr)
 
     def pop(self, rd, print_line):
         if not print_line:
@@ -364,14 +344,33 @@ class ATtiny13(ALU):
         else:
             print '%04x : rjmp\t%04x' % (self.pointer, self.pointer + 2 * k + 2)
 
-    def sbic(self, args, print_line):
-        (a, b) = args
+    def rol(self, args, print_line):
+        (rd, rr) = args
+        value = self.reg_vals[rd]
         if not print_line:
-            if not self.check_bit(self.reg_vals[a], b):
-                self.pointer += 2;
+            func = self.clear_bit
+            if self.check_bit(value, 7):
+                func = self.set_bit
+            self.reg_vals[rd] = func(value << 1, 0) & 255
+            # SET FLAGS HERE
             self.pointer += 2
         else:
-            print '%04x : sbrs\t%s, %s' % (self.pointer, a, b)
+            print '%04x : rol\t%s' % (self.pointer, rd)
+
+    def ror(self, rd, print_line):
+        if not print_line:
+            func = self.clear_bit
+            if self.check_bit(self.reg_vals[rd], 0):
+                func = self.set_bit
+            self.reg_vals[rd] >> 1
+            func(self.reg_vals[rd], 7)
+            # SET FLAGS HERE
+            self.pointer += 2
+        else:
+            print '%04x : rol\t%s' % (self.pointer, rd)
+
+    def sbic(self, args, print_line):
+        self.common_checkio('sbic', args, print_line)
 
     def sbrs(self, args, print_line):
         (rr, b) = args
