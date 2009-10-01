@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # (c) 2009 Ruslan Popov <ruslan.popov@gmail.com>
 
-import os, sys, re
+import sys, re
 from optparse import OptionParser
 
 parser = OptionParser()
@@ -15,13 +15,6 @@ for key in ['hexfile']:
         print 'ERROR: Parameter %s is required!' % (key, )
         parser.print_help()
         sys.exit(1)
-
-record_types = {'00': 'Data',
-                '01': 'End of File',
-                '02': 'Extended Segment Address',
-                '03': 'Start Segment Address',
-                '04': 'Extended Linear Address',
-                '05': 'Start Linear Address'}
 
 def copyright():
     print '\n(c)2009 Ruslan Popov - The simplest ATtiny13\'s emulator.\n'
@@ -43,63 +36,6 @@ def help_info():
     print '\t\tset r16=0b01010101 \tset r17=0x2a \t\tset r18=99'
     print '\t\tset psreg=0b01010101 \tset pportb=0x2a \tset ppinb=99'
     print
-
-def check_record(record):
-    """ Checks record count+addrH+addrL+type+sum(dd)+ss == 0x00. If
-    checksum doesn't match, it raises exceptions, else silently
-    return. """
-    checking = reduce(lambda x,y: x + y, [int(record[i*2:i*2+2], 16) for i in [x for x in xrange(len(record)/2)]])
-    if ('%02x' % checking)[-2:] != '00':
-        raise Exception ('ERROR: Checksum doesn\' match! Record is %s' % (record, ))
-
-def build_code_tree(alu, filename):
-    """ Builds code tree. """
-    if not os.path.isfile(filename):
-        raise Exception('ERROR: Does the %s exist?' % (filename, ))
-    hex = open(filename, 'r').read().split('\r\n')
-
-    code_tree = {}
-    segment_address = 0
-
-    for line in hex:
-        if len(line) == 0:
-            continue
-        check_record(line[1:])
-        regexp = re.compile(r"""
-                 ^\: # intel hex record start byte
-                  (?P<count>[0-9A-F]{2}) # record's byte count
-                  (?P<addr>[0-9A-F]{4}) # record's first address
-                  (?P<type>[0-9A-F]{2}) # record type
-                  (?P<data>[0-9A-F]*) # actual data (0..255 bytes)
-                  (?P<checksum>[0-9A-F]{2}) # checksum
-                 $""", re.X)
-        m = re.match(regexp, line)
-        if not m:
-            raise Exception('ERROR: This is not Intel HEX!')
-        (count, addr, rtype, data, checksum) = m.group('count', 'addr', 'type', 'data', 'checksum')
-
-        if rtype == '02':
-            segment_address = int(data, 16)
-        elif rtype == '01':
-            pass
-        elif rtype == '00':
-            record_start_address = segment_address + int(addr, 16)
-            op_addr = record_start_address
-            for i in xrange(len(data)/4):
-                word = '%s%s' % (data[i*4+2:i*4+4], data[i*4:i*4+2])
-                (mnemo, value) = alu.parse(op_addr, word)
-
-                # operand synonyms
-                if type(value) is tuple:
-                    if mnemo == 'eor' and value[0] == value[1]:
-                        mnemo = 'clr'
-                        value = value[0]
-
-                code_tree.update({'%04x' % op_addr: (mnemo, value)})
-                op_addr += 2
-        else:
-            continue
-    return code_tree
 
 def show_registers(alu):
     """ Shows current state of registers. """
@@ -140,16 +76,20 @@ if __name__ == '__main__':
     copyright()
 
     from attiny13 import ATtiny13
-    alu = ATtiny13()
+    from hex_loader import HexLoader
 
-    code_tree = build_code_tree(alu, options.hexfile)
+    alu = ATtiny13()
+    loader = HexLoader(alu, options.hexfile)
+
+    code_tree = loader.get_code_tree()
+    print code_tree['002e']
 
     show_scope(alu.get_pointer())
     while True:
         addr = '%04x' % alu.get_pointer()
         mnemo = code_tree.get(addr, None)
         if not mnemo:
-            raise Exception('ERROR: %04x' % pointer)
+            raise Exception('ERROR: %04x' % alu.get_pointer())
         (command, args) = mnemo
 
         alu.show(command, args)
