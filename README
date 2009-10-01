@@ -1,7 +1,6 @@
-This project is devoted to creation simple ATtiny emulator.
-I've initiated it because of there were no known such software
-on Linux area. Also it'd helped to me to improve my skills in
-Python.
+This project is devoted to creation of a simple ATtiny emulator.
+I've started it because there was no such software for Linux. 
+It will also help me to improve my skills in Python.
 
 Usage:
 	python ./emulator.py -f some.hex
