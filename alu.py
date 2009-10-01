@@ -6,13 +6,13 @@ class ALU(object):
         self.port_vals = {}
         self.stack = []
 
-        self.flags = {'i': 7, 't': 6, 'h': 5, 's': 4, 
+        self.flags = {'i': 7, 't': 6, 'h': 5, 's': 4,
                       'v': 3, 'n': 2, 'z': 1, 'c': 0}
 
     def set_bit(self, x, bitnum):
         """ Sets appropriate bit. """
         return x | 1 << bitnum
-        
+
     def clear_bit(self, x, bitnum):
         """ Clears appropriate bit. """
         return x & ~(1 << bitnum)
