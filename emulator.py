@@ -16,10 +16,10 @@ for key in ['hexfile']:
         parser.print_help()
         sys.exit(1)
 
-record_types = {'00': 'Data', 
-                '01': 'End of File', 
+record_types = {'00': 'Data',
+                '01': 'End of File',
                 '02': 'Extended Segment Address',
-                '03': 'Start Segment Address', 
+                '03': 'Start Segment Address',
                 '04': 'Extended Linear Address',
                 '05': 'Start Linear Address'}
 
@@ -36,7 +36,7 @@ def help_info():
     print '\tn[ext]      - execute line'
     print
     print '\tt|int timer - raise timer interrupt'
-    print 
+    print
     print '\tset r<regnum>=[0b|0x]<value> - set register\'s value'
     print '\tset p<name>=[0b|0x]<value>   - set port\'s value'
     print '\texamples:'
@@ -51,47 +51,6 @@ def check_record(record):
     checking = reduce(lambda x,y: x + y, [int(record[i*2:i*2+2], 16) for i in [x for x in xrange(len(record)/2)]])
     if ('%02x' % checking)[-2:] != '00':
         raise Exception ('ERROR: Checksum doesn\' match! Record is %s' % (record, ))
-
-
-def set_bit(x, bitnum):
-    """ Sets appropriate bit. """
-    return x | 1 << bitnum
-
-def clear_bit(x, bitnum):
-    """ Clears appropriate bit. """
-    return x & ~(1 << bitnum)
-
-def check_bit(x, bitnum):
-    """ Checks if appropriate bit is set. """
-    return (x & (1 << bitnum)) != 0
-
-def get_port_by_name(port_list, name):
-    """ Get port's number by its name. """
-    return filter(lambda x: port_list[x] == name.upper(), port_list)[0]
-
-def get_port_value(port_list, number):
-    """ Get the value of appropriate port. """
-    return port_list[number]
-
-def set_flag(port_list, flags, action='reset'):
-    """ Set the SREG bits. """
-    flags = {'i': 7, 't': 6, 'h': 5, 's': 4, 'v': 3, 'n': 2, 'z': 1, 'c': 0}
-    port_number = get_port_by_name(port_list, 'sreg')
-    try:
-        value = port_list[port_number]
-        bitnum = flags[flag]
-    except:
-        raise Exception('ERROR: Wrong flag!')
-    action_func = None
-    if action == 'set':
-        action_func = set_bit
-    else:
-        action_func = clear_bit
-    if type(flags) is tuple:
-        for i in flags:
-            port_list[port_number] = action_func(value, bitnum)
-    else:
-        port_list[port_number] = action_func(value, bitnum)
 
 def build_code_tree(alu, filename):
     """ Builds code tree. """
@@ -192,11 +151,13 @@ if __name__ == '__main__':
         if not mnemo:
             raise Exception('ERROR: %04x' % pointer)
         (command, args) = mnemo
-        
+
         alu.show(command, args)
 
         user = raw_input('# ')
 
+        if user in ['n', 'next']:
+            alu.process(command, args)
         if user in ['q', 'quit']:
             break
         if user in ['h', 'help']:
@@ -238,7 +199,5 @@ if __name__ == '__main__':
                         reg_name = 'r%s' % m.group('reg_number')
                         registers[reg_name] = value
                     break
-        if user in ['n', 'next']:
-            alu.process(command, args)
 
     sys.exit(0)
