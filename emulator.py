@@ -82,7 +82,6 @@ if __name__ == '__main__':
     loader = HexLoader(alu, options.hexfile)
 
     code_tree = loader.get_code_tree()
-    print code_tree['002e']
 
     show_scope(alu.get_pointer())
     while True:
