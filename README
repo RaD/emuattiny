@@ -5,3 +5,6 @@ Python.
 
 Usage:
 	python ./emulator.py -f some.hex
+   or
+        make compile
+        python ./emulator.pyc -f some.hex
